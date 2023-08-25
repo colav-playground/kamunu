@@ -10,6 +10,7 @@ import time
 
 records_collection, not_inserted = mongodb()
 
+
 def insert_organization_record(record, collection, function):
     """
     Insert or update an organization record in the MongoDB collection.
@@ -28,7 +29,8 @@ def insert_organization_record(record, collection, function):
 
             insert = records_collection.insert_one(record)
             if insert:
-                print(f"'{record['raw_name'][0]['name']}' inserted in the DB at ObjectId({record['_id']})")
+                print(
+                    f"'{record['raw_name'][0]['name']}' inserted in the DB at ObjectId({record['_id']})")
                 time.sleep(0.5)
                 update = extract_data(record)
                 if update:
@@ -38,12 +40,14 @@ def insert_organization_record(record, collection, function):
                         time.sleep(0.5)
                         update['location'] = location_update
 
-                    keys_order = ['_id', 'raw_name', 'names', 'ids', 'categories', 'location', 'records', 'validation']
-                    final_record =  OrderedDict((key, update[key]) for key in keys_order)
+                    keys_order = ['_id', 'raw_name', 'names', 'ids',
+                                  'categories', 'location', 'records', 'validation']
+                    final_record = OrderedDict(
+                        (key, update[key]) for key in keys_order)
                     record_update = records_collection.find_one_and_update(
                         {'_id': _id},
                         {"$set": final_record})
-                    
+
                     if record_update:
                         print("The record was successfully updated.")
                     else:
@@ -57,20 +61,22 @@ def insert_organization_record(record, collection, function):
             insert = not_inserted.insert_one(record)
             time.sleep(1)
             return True
-        
+
     elif function == 'update':
         if collection == 'records_collection':
             _id = record['_id']
             update = record['new_name']
-        
+
             document = records_collection.find_one({'_id': _id})
             raw_name = document.get('raw_name', [])
             if any(item == update for item in raw_name):
                 return False
             else:
-                record_update = records_collection.update_one({'_id': _id}, {'$push': {'raw_name': update}})
+                record_update = records_collection.update_one(
+                    {'_id': _id}, {'$push': {'raw_name': update}})
                 if record_update:
                     return True
+
 
 def single_organization(organization_name, source):
     """
@@ -87,13 +93,16 @@ def single_organization(organization_name, source):
     local_record = local_search(organization_name)
 
     if local_record:
-        print(f"'{organization_name}' is already in the DB at ObjectId({local_record[0]}) with IDs: {local_record[1]}")
+        print(
+            f"'{organization_name}' is already in the DB at ObjectId({local_record[0]}) with IDs: {local_record[1]}")
         _id = ObjectId(local_record[0])
         new_name = {'source': source, 'name': organization_name}
-        record = {'_id': _id, 'new_name': new_name} 
-        inserted = insert_organization_record(record, 'records_collection', 'update')
+        record = {'_id': _id, 'new_name': new_name}
+        inserted = insert_organization_record(
+            record, 'records_collection', 'update')
         if inserted:
-            print(f"The new name and the data source were added to the corresponding record")
+            print(
+                f"The new name and the data source were added to the corresponding record")
         else:
             print(f"The new name and data source already exist in the record.")
         time.sleep(3)
@@ -110,7 +119,8 @@ def single_organization(organization_name, source):
                 }],
                 'ids': kamunu,
             }
-            inserted = insert_organization_record(record, 'records_collection', 'insert')
+            inserted = insert_organization_record(
+                record, 'records_collection', 'insert')
             if inserted:
                 return True
         else:
@@ -119,9 +129,11 @@ def single_organization(organization_name, source):
                 'source': source,
                 'organization': organization_name
             }
-            inserted = insert_organization_record(record, 'not_inserted', 'insert')
+            inserted = insert_organization_record(
+                record, 'not_inserted', 'insert')
             if inserted:
                 return False
+
 
 def multiple_organizations(json_file_path):
     """
@@ -133,7 +145,7 @@ def multiple_organizations(json_file_path):
     Returns:
         bool: True if the operation is successful, False otherwise.
     """
-    
+
     def load_data(file_path):
         """
         Load JSON data from a file.
@@ -148,7 +160,7 @@ def multiple_organizations(json_file_path):
             with open(file_path, encoding="utf8") as f:
                 data = json.load(f)
             return data
-        
+
         except:
             return None
 
@@ -156,25 +168,28 @@ def multiple_organizations(json_file_path):
     if data and data['organizations'] and data['source']:
         source = data['source']
         rds = 0
-        
+
         for organization_name in data['organizations']:
             local_record = local_search(organization_name)
-            
+
             if local_record:
-                print(f"'{organization_name}' is already in the DB at ObjectId({local_record[0]}) with IDs: {local_record[1]}")
+                print(
+                    f"'{organization_name}' is already in the DB at ObjectId({local_record[0]}) with IDs: {local_record[1]}")
                 _id = ObjectId(local_record[0])
                 new_name = {'source': source, 'name': organization_name}
-                record = {'_id': _id, 'new_name': new_name} 
-                inserted = insert_organization_record(record, 'records_collection', 'update')
+                record = {'_id': _id, 'new_name': new_name}
+                inserted = insert_organization_record(
+                    record, 'records_collection', 'update')
                 if inserted:
-                    print(f"The new name and the data source were added to the corresponding record")
+                    print(
+                        f"The new name and the data source were added to the corresponding record")
                 else:
                     print(f"The new name and data source already exist in the record.")
                 time.sleep(3)
                 return True
             else:
                 kamunu = Kamunu(organization_name)[0]
-                
+
                 if kamunu and (kamunu['wikidata'] or kamunu['ror']):
                     record = {
                         '_id': ObjectId(),
@@ -184,7 +199,8 @@ def multiple_organizations(json_file_path):
                         }],
                         'ids': kamunu,
                     }
-                    inserted = insert_organization_record(record, 'records_collection', 'insert')
+                    inserted = insert_organization_record(
+                        record, 'records_collection', 'insert')
                     time.sleep(3)
                     if inserted:
                         rds += 1
@@ -195,10 +211,11 @@ def multiple_organizations(json_file_path):
                             rds = 0
                 else:
                     not_i = {
-                    '_id': ObjectId(),
-                    'source': source,
-                    'organization': organization_name
+                        '_id': ObjectId(),
+                        'source': source,
+                        'organization': organization_name
                     }
-                    inserted = insert_organization_record(not_i, 'not_inserted', 'insert')
+                    inserted = insert_organization_record(
+                        not_i, 'not_inserted', 'insert')
                     if inserted:
                         return False

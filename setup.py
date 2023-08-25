@@ -1,5 +1,5 @@
 from __future__ import print_function
-from setuptools import setup
+from setuptools import setup, find_packages
 
 import os
 import sys
@@ -42,15 +42,17 @@ def main():
         version=get_version('kamunu/_version.py'),
 
         # Application author details:
-        author="Federico Vergara Gómez",
-        author_email="fedevego15@gmail.com",
+        author="Colav",
+        author_email="colav@udea.edu.co",
 
+        # Packages
+        packages=find_packages(exclude=['tests']),
 
         # Include additional files into the package
         include_package_data=True,
 
         # Details
-        url="https://github.com/fedevergara/kamunu",
+        url="https://github.com/colav-playground/kamunu/",
         scripts=['bin/kamunu_run'],
         #
         license="BSD",
@@ -75,6 +77,7 @@ def main():
             'nltk',
         ],
     )
+
 
 if __name__ == "__main__":
     main()

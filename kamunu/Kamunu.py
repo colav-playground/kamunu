@@ -10,6 +10,7 @@ import re
 
 print("Kamunu_v0.0.1a")
 
+
 def Kamunu(query):
     """
     Given a search query, the kamunu function performs searches on various search engines 
@@ -27,11 +28,11 @@ def Kamunu(query):
     # Helper function to check if the query contains non-ASCII characters and convert them if necessary.
     if not query.isascii():
         query = unidecode(query)
-    
+
     # Pre-process the query by converting it to lowercase and removing parentheses.
     query = query.lower().replace(')', '').replace('(', '')
-    term  = query + ' wikidata ' + "site:wikidata.org"
-    
+    term = query + ' wikidata ' + "site:wikidata.org"
+
     # Dictionary to store search results from different search engines.
     search_results = {'wikidata': ''}
 
@@ -46,12 +47,13 @@ def Kamunu(query):
             dict: A dictionary containing information about the entity fetched from the Wikidata API.
         """
         try:
-            r = requests.get(f'https://www.wikidata.org/wiki/Special:EntityData/{id_}.json').json()
+            r = requests.get(
+                f'https://www.wikidata.org/wiki/Special:EntityData/{id_}.json').json()
             r = r['entities'][id_]
             return r
         except Exception as e:
             raise Exception(f'An error occurred (wikiQsearch): {e}')
-    
+
     # Function to search for entities on Wikidata based on the query.
     def wikidata(query: str) -> dict:
         """
@@ -65,7 +67,8 @@ def Kamunu(query):
         """
         sr = []
         base = 'https://www.wikidata.org/w/api.php'
-        params = {"action": "wbsearchentities","format": "json","search": query,"language":"en","type": "item","limit": 1}
+        params = {"action": "wbsearchentities", "format": "json",
+                  "search": query, "language": "en", "type": "item", "limit": 1}
         try:
             responses = requests.get(base, params=params, timeout=1).json()
             if responses['search']:
@@ -79,12 +82,14 @@ def Kamunu(query):
             # If no results are found on Wikidata, try searching on the Wikipedia API using the detected language.
             lang = detect(query)
             base = f'https://{lang}.wikipedia.org/w/api.php'
-            params = {'action':'query','format':'json','list':'search','srsearch':query}
+            params = {'action': 'query', 'format': 'json',
+                      'list': 'search', 'srsearch': query}
             try:
                 data = requests.get(base, params=params).json()
                 if data["query"]["search"]:
                     pageid = data["query"]["search"][0]["pageid"]
-                    params = {'action': 'query', 'format': 'json', 'pageids': pageid, 'prop': 'pageprops'}
+                    params = {'action': 'query', 'format': 'json',
+                              'pageids': pageid, 'prop': 'pageprops'}
                     response = requests.get(base, params=params).json()
                     wiki_id = response['query']['pages'][f'{pageid}']['pageprops']['wikibase_item']
                     search_results = {'wikipedia': [wiki_id]}
@@ -92,8 +97,9 @@ def Kamunu(query):
                 else:
                     wiki_hit = None
             except Exception as e:
-                raise Exception(f'wikidata: An error occurred (wikipedia): {e}')
-        
+                raise Exception(
+                    f'wikidata: An error occurred (wikipedia): {e}')
+
         # Process the Wikidata search results and append relevant entity IDs to the 'sr' list.
         if wiki_hit:
             hit_label = wiki_hit['search'][0]['label'].lower()
@@ -105,15 +111,15 @@ def Kamunu(query):
                     sr.append(wiki_hit['search'][0]['id'])
             elif fl > 90:
                 sr.append(wiki_hit['search'][0]['id'])
-        
+
         # Fetch detailed information about the first relevant entity from Wikidata.
         if sr:
             global q_
             q_ = wikiQsearch(sr[0])
-            
+
         search_results = {'wikidata': sr}
-        return search_results        
-    
+        return search_results
+
     # Function to perform a Google search based on the given query and term.
     def google(query: str, term: str) -> dict:
         """
@@ -141,7 +147,8 @@ def Kamunu(query):
             completeData = soup.find_all("div", {"class": "yuRUbf"})
 
             if not completeData:
-                completeData = soup.find('a', href=re.compile(r'wikidata.org/wiki/'))
+                completeData = soup.find(
+                    'a', href=re.compile(r'wikidata.org/wiki/'))
 
                 if completeData:
                     url = completeData['href']
@@ -150,17 +157,17 @@ def Kamunu(query):
                         sr.append(qid.group(1))
                 else:
                     pass
-                    #print("Warning! Not Google scraping")
+                    # print("Warning! Not Google scraping")
             else:
                 sr = [data.find("a").get("href").split('/')[-1]
-                    for data in completeData if 'Q' in data.find("a").get("href")]
+                      for data in completeData if 'Q' in data.find("a").get("href")]
 
             return {'google': sr}
 
         return {'google': []}
 
-        
     # Function to perform a DuckDuckGo search based on the given query and term.
+
     def duckduckgo(query: str, term: str) -> dict:
         """
         This function performs a DuckDuckGo search using the given query and term.
@@ -179,33 +186,33 @@ def Kamunu(query):
         headers = {
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3"
         }
-        
+
         try:
-            response = requests.get(url, headers=headers)     
+            response = requests.get(url, headers=headers)
         except requests.exceptions.RequestException as e:
             raise Exception(f'DuckDuckGo: An error occurred (duckduckgo): {e}')
 
         if response:
             soup = BeautifulSoup(response.text, 'html.parser')
-            completeData = soup.find_all("a",{"class":"result__url"})
-            
+            completeData = soup.find_all("a", {"class": "result__url"})
+
             if not completeData:
                 print("Warning!, not Google scrapping")
-                
+
             for i, result in enumerate(completeData):
                 href = result['href']
                 url = href.split('/')[-1]
                 if url and 'Q' in url:
                     if url.split('Q')[-1].isdigit():
                         sr.append(url)
-                        if i > 1: break
+                        if i > 1:
+                            break
 
             search_results = {'duckduckgo': sr}
             return search_results
-        
+
         return {}
 
-    
     def bing(query: str, term: str) -> dict:
         """
         This function performs a Bing search using the given query and term.
@@ -220,30 +227,32 @@ def Kamunu(query):
         sr = []
         term = term.replace(' ', '+')
         url = f'https://www.bing.com/search?q={term}'
-        headers = {"User-Agent":"Mozilla/5.0 (Windows NT 6.3; WOW64; Trident/7.0; Touch; rv:11.0)"}
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 6.3; WOW64; Trident/7.0; Touch; rv:11.0)"}
         try:
             response = requests.get(url, headers=headers)
         except requests.exceptions.RequestException as e:
             raise Exception(f'Bing: An error occurred (bing): {e}')
-        
+
         if response:
             soup = BeautifulSoup(response.text, 'html5lib')
-            completeData = soup.find_all("li",{"class":"b_algo"})
+            completeData = soup.find_all("li", {"class": "b_algo"})
             if not completeData:
                 print("Warning!, not Bing scrapping")
-                
+
             for i in range(0, len(completeData)):
                 url = completeData[i].find("a").get("href")
                 wiki_id = url.split('/')[-1]
                 if wiki_id and 'Q' in wiki_id:
                     if wiki_id.split('Q')[-1].isdigit():
                         sr.append(wiki_id)
-                        if i > 1: break
+                        if i > 1:
+                            break
 
             search_results = {'bing': sr}
             return search_results
         return []
-    
+
     # Function to find the most common ID from search results.
     def most_common_id(search_results: dict) -> list:
         """
@@ -263,10 +272,10 @@ def Kamunu(query):
                     id_counter[idd] += 1
                 else:
                     id_counter[idd] = 1
-        
+
         if id_counter:
             most_c_id = max(id_counter, key=id_counter.get)
-        
+
             if list(id_counter.values()).count(id_counter[most_c_id]) > 1:
                 ids_repeated = []
                 for ids, frec in id_counter.items():
@@ -274,7 +283,8 @@ def Kamunu(query):
                         try:
                             org = wikiQsearch(ids)
                         except Exception as e:
-                            print(f'Error fetching organization data (most_common_id): {e}')
+                            print(
+                                f'Error fetching organization data (most_common_id): {e}')
                             continue
 
                         lang = detect(query)
@@ -287,20 +297,20 @@ def Kamunu(query):
                                 for lang in org['labels'].keys():
                                     org_ = org['labels'][lang]['value']
                                     break
-                            
+
                             if fuzz.ratio(query, org_) >= 90:
                                 ids_repeated = [ids]
                                 break
-                            else:    
+                            else:
                                 ids_repeated.append(ids)
 
                 return ids_repeated
 
             else:
                 return [most_c_id]
-        
+
         return []
-    
+
     # Function to perform verifications on the search results and return the verified IDs.
     def verifications(final_ids: list, query: str) -> list:
         """
@@ -327,7 +337,7 @@ def Kamunu(query):
                     tquery = ts(source='auto', target='en').translate(query)
                 except Exception as e:
                     print(f'Error translating query (verifications): {e}')
-                    
+
                     langs = []
                     for word in query.split():
                         lang = detect(word)
@@ -338,31 +348,36 @@ def Kamunu(query):
                         counts[element] = langs.count(element)
 
                     lang = max(counts, key=counts.get)
-                    tquery = tss.translate_text(query, from_language=lang , to_language='en')
+                    tquery = tss.translate_text(
+                        query, from_language=lang, to_language='en')
             else:
                 tquery = query
-            
+
             if q_:
-                aliases = [inx['value'].lower() for key, values in q_['aliases'].items() for inx in values]
+                aliases = [inx['value'].lower() for key, values in q_[
+                    'aliases'].items() for inx in values]
                 qsplit = query.split()
-                labels = [q_['labels'].get(lb).get('value').lower() for lb in q_['labels']]
+                labels = [q_['labels'].get(lb).get(
+                    'value').lower() for lb in q_['labels']]
                 eOl = process.extractOne(query, labels)
                 l = eOl[1] >= 90 if eOl else 0
                 teOl = process.extractOne(tquery, labels)
                 lt = teOl[1] > 95 if teOl else 0
-                
-                sitelinks = [q_['sitelinks'].get(lb).get('title') for lb in q_['sitelinks']]
-                
+
+                sitelinks = [q_['sitelinks'].get(lb).get(
+                    'title') for lb in q_['sitelinks']]
+
                 if sitelinks:
-                        eOst = process.extractOne(query, sitelinks)
-                        st = eOst[1] > 95 if eOst else 0
+                    eOst = process.extractOne(query, sitelinks)
+                    st = eOst[1] > 95 if eOst else 0
                 else:
                     st = False
-                    
+
                 c = set(aliases) & set(qsplit)
                 if c or l or st or lt:
                     if 'P31' in q_['claims'].keys():
-                        country = True if 'Q6256' in [li['mainsnak']['datavalue']['value']['id'] for li in q_['claims']['P31']] else False
+                        country = True if 'Q6256' in [
+                            li['mainsnak']['datavalue']['value']['id'] for li in q_['claims']['P31']] else False
                         if not country:
                             response.append(Q)
 
@@ -385,42 +400,46 @@ def Kamunu(query):
                 try:
                     q_ = wikiQsearch(Q)
                 except Exception as e:
-                    print(f'Error fetching organization data (ror_search): {e}')
+                    print(
+                        f'Error fetching organization data (ror_search): {e}')
                     continue
 
                 if 'claims' in q_.keys():
                     P = 'P6782'
                     ROR_ID = True if P in q_['claims'] else False
                     if ROR_ID:
-                        ror_id = 'https://ror.org/' + q_['claims'][P][0]['mainsnak']['datavalue']['value']
+                        ror_id = 'https://ror.org/' + \
+                            q_['claims'][P][0]['mainsnak']['datavalue']['value']
                         return ror_id
 
         # If ROR ID not found, perform a search on the ROR API using the query.
         ror_url = 'https://api.ror.org/organizations?query='
-        query_ = [query.replace(' ','+').replace('  ',' ').strip()]
-        
+        query_ = [query.replace(' ', '+').replace('  ', ' ').strip()]
+
         if '/' in query_[0]:
             query_ = query_[0].split('/')
-        
+
         for qe_ in query_:
             rorsearch = ror_url + qe_
-                
+
             try:
                 ror = requests.get(rorsearch).json()
                 if not 'items' in ror.keys():
                     return []
                 ror_list = ror['items']
-                
+
             except Exception as e:
                 print(f'Error fetching ROR data (ror_search): {e}')
                 return []
-            
+
             for regss in ror_list:
                 l_name = regss['name'].lower()
                 for regs in regss.get('labels', []):
                     l_label = regs.get('label', '').lower()
-                    ptr_n = fuzz.partial_token_sort_ratio(qe_.replace('+',' '), l_name)
-                    ptr_l = fuzz.partial_token_sort_ratio(qe_.replace('+',' '), l_label)
+                    ptr_n = fuzz.partial_token_sort_ratio(
+                        qe_.replace('+', ' '), l_name)
+                    ptr_l = fuzz.partial_token_sort_ratio(
+                        qe_.replace('+', ' '), l_label)
                     if ptr_n > 95 or ptr_l > 95:
                         ror_id = regss['id']
                         return ror_id
@@ -428,27 +447,26 @@ def Kamunu(query):
                     continue
 
             return []
-    
 
     with ThreadPoolExecutor(max_workers=4) as executor:
-        futures = []        
-        
+        futures = []
+
         futures.append(executor.submit(wikidata, query))
         futures.append(executor.submit(google, query, term))
         futures.append(executor.submit(duckduckgo, query, term))
         futures.append(executor.submit(bing, query, term))
-        
+
         for future in as_completed(futures):
             try:
                 search_results.update(future.result())
-            
+
             except Exception as e:
                 print('An error occurred (ThreadPoolExecutor): {}'.format(e))
-                
 
     # If Wikidata search results are available, return the Wikidata link and ROR ID if found.
     if search_results['wikidata']:
-        response = {'wikidata': "https://www.wikidata.org/wiki/" + search_results['wikidata'][0], 'ror': ror_search(search_results['wikidata'], query)}
+        response = {'wikidata': "https://www.wikidata.org/wiki/" +
+                    search_results['wikidata'][0], 'ror': ror_search(search_results['wikidata'], query)}
     else:
         # If Wikidata search results are not available, perform verifications on the search results
         # and return the Wikidata link and ROR ID if found based on verifications.
@@ -456,8 +474,9 @@ def Kamunu(query):
         response_wiki = verifications(final_ids, query)
         response_ror = ror_search(response_wiki, query)
         if response_wiki:
-            response = {'wikidata': "https://www.wikidata.org/wiki/" + response_wiki[0], 'ror': response_ror}
+            response = {'wikidata': "https://www.wikidata.org/wiki/" +
+                        response_wiki[0], 'ror': response_ror}
         else:
             response = {'wikidata': response_wiki, 'ror': response_ror}
-    
+
     return response, search_results

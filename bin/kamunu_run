@@ -1,14 +1,7 @@
 #!/usr/bin/env python3
 import argparse
-import os
-import sys
-'''
-current_dir = os.path.dirname(os.path.abspath(__file__))
-root_dir = os.path.abspath(os.path.join(current_dir, ".."))
-sys.path.append(root_dir)
-'''
-
 import kamunu.kamunu_main as kamunu_main
+
 
 def parse_args():
     parser = argparse.ArgumentParser(
@@ -17,7 +10,7 @@ def parse_args():
     parser.add_argument("-S", "--single", type=str,
                         help="Search for a single organization",
                         required=False)
-    
+
     parser.add_argument("-O", "--origin", type=str,
                         help="Set manually the source for single ejecution",
                         required=False)
@@ -25,8 +18,9 @@ def parse_args():
     parser.add_argument("-M", "--multiple", type=str,
                         help="Search for multiple organizations from a JSON file",
                         required=False)
-    
+
     return parser.parse_args()
+
 
 def main():
     args = parse_args()
@@ -39,6 +33,7 @@ def main():
         kamunu_main.multiple_organizations(args.multiple)
     else:
         print("Please provide valid command-line arguments.")
+
 
 if __name__ == '__main__':
     main()
