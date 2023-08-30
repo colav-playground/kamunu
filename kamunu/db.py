@@ -13,5 +13,5 @@ def mongodb():
     records_collection = db[collection_name]
     not_inserted = db[collection_name_not_inserted]
 
-    if records_collection and not_inserted:
+    if records_collection is not None and not_inserted is not None:
         return records_collection, not_inserted

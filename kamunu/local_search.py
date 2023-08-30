@@ -104,8 +104,9 @@ def org_match(_id: str, org: str):
     r_name = None
 
     if 'ror' in itms.get('records', {}):
-        r_name = itms['records']['ror'].get('name')
-        fuzz_r_n_r = fuzz.ratio(org, r_name.lower() if r_name else None)
+        if itms['records']['ror']:
+            r_name = itms['records']['ror'].get('name')
+            fuzz_r_n_r = fuzz.ratio(org, r_name.lower() if r_name else None)
 
     # Check if any of the fuzzy matches exceed the threshold (95)
     if (fuzz_raw and fuzz_raw[1] > 95) or (fuzz_w_l and fuzz_w_l[1] > 95) or (fuzz_r_n_r and fuzz_r_n_r > 95):
@@ -128,7 +129,7 @@ def org_search(key: str, organization: str):
         Optional[str]: The _id of the matching organization's record if found, otherwise returns None.
     """
 
-    candidates = []
+    # candidates = []
 
     # Remove stopwords from the organization name if it has more than two words.
     if len(organization.split()) > 2:
@@ -153,9 +154,9 @@ def org_search(key: str, organization: str):
             # Check if the organization name matches any of the records' names using org_match function
             id_found = org_match(_id, organization)
             if id_found:
-                ids = records_collection.find_one(
-                    {'_id': ObjectId(_id)})['ids']
-                return _id, ids
+                record = records_collection.find_one(
+                    {'_id': ObjectId(_id)})
+                return _id, record
 
     # No match found, return None
     return None

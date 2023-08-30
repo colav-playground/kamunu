@@ -26,9 +26,11 @@ def main():
     args = parse_args()
 
     if args.single and args.origin:
-        kamunu_main.single_organization(args.single, args.origin)
+        search = kamunu_main.single_organization(args.single, args.origin)
+        return search
     elif args.single:
-        kamunu_main.single_organization(args.single, "single_search")
+        search = kamunu_main.single_organization(args.single, "single_search")
+        return search
     elif args.multiple:
         kamunu_main.multiple_organizations(args.multiple)
     else:

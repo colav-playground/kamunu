@@ -31,13 +31,12 @@ def insert_organization_record(record, collection, function):
             if insert:
                 print(
                     f"'{record['raw_name'][0]['name']}' inserted in the DB at ObjectId({record['_id']})")
-                time.sleep(0.5)
+                time.sleep(0.1)
                 update = extract_data(record)
                 if update:
                     _id = (record['_id'])
                     location_update = location_enrichment(update)
                     if location_update:
-                        time.sleep(0.5)
                         update['location'] = location_update
 
                     keys_order = ['_id', 'raw_name', 'names', 'ids',
@@ -50,17 +49,19 @@ def insert_organization_record(record, collection, function):
 
                     if record_update:
                         print("The record was successfully updated.")
+                        return record_update
                     else:
                         print("The record was NOT updated.")
                 else:
                     print("The record data was NOT extracted.")
-                time.sleep(0.5)
+
+            time.sleep(0.1)
+            return record
 
         elif collection == 'not_inserted':
             print(f"'{record['organization']}' NOT inserted in the DB")
             insert = not_inserted.insert_one(record)
-            time.sleep(1)
-            return True
+            return record
 
     elif function == 'update':
         if collection == 'records_collection':
@@ -93,22 +94,22 @@ def single_organization(organization_name, source):
     local_record = local_search(organization_name)
 
     if local_record:
+        full_record = local_record[1]
         print(
-            f"'{organization_name}' is already in the DB at ObjectId({local_record[0]}) with IDs: {local_record[1]}")
+            f"'{organization_name}' is already in the DB at ObjectId({local_record[0]}) with IDs: {full_record['ids']}")
         _id = ObjectId(local_record[0])
         new_name = {'source': source, 'name': organization_name}
         record = {'_id': _id, 'new_name': new_name}
         inserted = insert_organization_record(
             record, 'records_collection', 'update')
         if inserted:
-            print(
-                f"The new name and the data source were added to the corresponding record")
+            print("The new name and the data source were added to the corresponding record")
         else:
-            print(f"The new name and data source already exist in the record.")
-        time.sleep(3)
-        return True
+            print("The new name and data source already exist in the record.")
+        time.sleep(0.1)
+        return full_record
     else:
-        kamunu = Kamunu(organization_name)[0]
+        kamunu, search_results = Kamunu(organization_name)
 
         if kamunu and (kamunu['wikidata'] or kamunu['ror']):
             record = {
@@ -122,7 +123,7 @@ def single_organization(organization_name, source):
             inserted = insert_organization_record(
                 record, 'records_collection', 'insert')
             if inserted:
-                return True
+                return inserted
         else:
             record = {
                 '_id': ObjectId(),
@@ -131,8 +132,7 @@ def single_organization(organization_name, source):
             }
             inserted = insert_organization_record(
                 record, 'not_inserted', 'insert')
-            if inserted:
-                return False
+            return inserted
 
 
 def multiple_organizations(json_file_path):
@@ -161,8 +161,8 @@ def multiple_organizations(json_file_path):
                 data = json.load(f)
             return data
 
-        except:
-            return None
+        except Exception as e:
+            return e
 
     data = load_data(json_file_path)
     if data and data['organizations'] and data['source']:
@@ -181,14 +181,14 @@ def multiple_organizations(json_file_path):
                 inserted = insert_organization_record(
                     record, 'records_collection', 'update')
                 if inserted:
-                    print(
-                        f"The new name and the data source were added to the corresponding record")
+                    print("The new name and the data source were added to the corresponding record")
                 else:
-                    print(f"The new name and data source already exist in the record.")
-                time.sleep(3)
+                    print("The new name and data source already exist in the record.")
+                time.sleep(0.1)
                 return True
             else:
                 kamunu = Kamunu(organization_name)[0]
+                print(kamunu)
 
                 if kamunu and (kamunu['wikidata'] or kamunu['ror']):
                     record = {
@@ -201,7 +201,7 @@ def multiple_organizations(json_file_path):
                     }
                     inserted = insert_organization_record(
                         record, 'records_collection', 'insert')
-                    time.sleep(3)
+                    time.sleep(0.1)
                     if inserted:
                         rds += 1
 

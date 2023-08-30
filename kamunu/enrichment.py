@@ -7,8 +7,8 @@ def Qsearch(id_: str):
         time.sleep(1)
         r = requests.get(
             f'https://www.wikidata.org/wiki/Special:EntityData/{id_}.json').json()
-    except:
-        return None
+    except Exception as e:
+        return e
 
     if r:
         data_name = r['entities'][id_]['labels']['en']['value']

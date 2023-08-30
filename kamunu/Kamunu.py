@@ -1,20 +1,21 @@
-import requests
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from deep_translator import GoogleTranslator as ts
+from kamunu._version import get_version
+from fuzzywuzzy import fuzz, process
+from unidecode import unidecode
 from bs4 import BeautifulSoup
 from langdetect import detect
-from fuzzywuzzy import fuzz, process
-from concurrent.futures import ThreadPoolExecutor, as_completed
-from unidecode import unidecode
-from deep_translator import GoogleTranslator as ts
 import translators as tss
+import requests
 import re
 
-print("Kamunu_v0.0.1a")
+print(f'Kamunu {get_version()}')
 
 
 def Kamunu(query):
     """
-    Given a search query, the kamunu function performs searches on various search engines 
-    and retrieves information from the wikidata API. It then evaluates the results to provide 
+    Given a search query, the kamunu function performs searches on various search engines
+    and retrieves information from the wikidata API. It then evaluates the results to provide
     the most relevant search results and returns them along with additional information.
 
     Args:
@@ -22,7 +23,7 @@ def Kamunu(query):
 
     Returns:
         tuple: A tuple containing a dictionary of search results along with additional information
-               and a dictionary of the original search results from different search engines.
+            and a dictionary of the original search results from different search engines.
     """
 
     # Helper function to check if the query contains non-ASCII characters and convert them if necessary.
@@ -360,7 +361,7 @@ def Kamunu(query):
                 labels = [q_['labels'].get(lb).get(
                     'value').lower() for lb in q_['labels']]
                 eOl = process.extractOne(query, labels)
-                l = eOl[1] >= 90 if eOl else 0
+                ll = eOl[1] >= 90 if eOl else 0
                 teOl = process.extractOne(tquery, labels)
                 lt = teOl[1] > 95 if teOl else 0
 
@@ -374,7 +375,7 @@ def Kamunu(query):
                     st = False
 
                 c = set(aliases) & set(qsplit)
-                if c or l or st or lt:
+                if c or ll or st or lt:
                     if 'P31' in q_['claims'].keys():
                         country = True if 'Q6256' in [
                             li['mainsnak']['datavalue']['value']['id'] for li in q_['claims']['P31']] else False
@@ -424,7 +425,7 @@ def Kamunu(query):
 
             try:
                 ror = requests.get(rorsearch).json()
-                if not 'items' in ror.keys():
+                if 'items' not in ror.keys():
                     return []
                 ror_list = ror['items']
 
@@ -465,8 +466,9 @@ def Kamunu(query):
 
     # If Wikidata search results are available, return the Wikidata link and ROR ID if found.
     if search_results['wikidata']:
-        response = {'wikidata': "https://www.wikidata.org/wiki/" +
-                    search_results['wikidata'][0], 'ror': ror_search(search_results['wikidata'], query)}
+        response = {'wikidata': "https://www.wikidata.org/wiki/" + search_results['wikidata'][0],
+                    'ror': ror_search(search_results['wikidata'], query)
+                    }
     else:
         # If Wikidata search results are not available, perform verifications on the search results
         # and return the Wikidata link and ROR ID if found based on verifications.
@@ -474,9 +476,12 @@ def Kamunu(query):
         response_wiki = verifications(final_ids, query)
         response_ror = ror_search(response_wiki, query)
         if response_wiki:
-            response = {'wikidata': "https://www.wikidata.org/wiki/" +
-                        response_wiki[0], 'ror': response_ror}
+            response = {
+                'wikidata': "https://www.wikidata.org/wiki/" + response_wiki[0],
+                'ror': response_ror}
         else:
-            response = {'wikidata': response_wiki, 'ror': response_ror}
+            response = {
+                'wikidata': response_wiki,
+                'ror': response_ror}
 
     return response, search_results
