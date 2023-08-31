@@ -95,7 +95,7 @@ def org_match(_id: str, org: str):
 
     # Extract wikidata labels and convert them to lowercase
     w_labels = []
-    if 'wikidata' in itms.get('records', {}) and type(itms['records']['wikidata']) == dict:
+    if 'wikidata' in itms.get('records', {}) and type(itms['records']['wikidata']) is dict:
         labels = itms['records']['wikidata'].get('labels', {})
         w_labels = [labels['value'].lower() for labels in labels.values()]
     fuzz_w_l = process.extractOne(org, w_labels)
