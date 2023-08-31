@@ -107,6 +107,8 @@ def org_match(_id: str, org: str):
         if itms['records']['ror']:
             r_name = itms['records']['ror'].get('name')
             fuzz_r_n_r = fuzz.ratio(org, r_name.lower() if r_name else None)
+        else:
+            fuzz_r_n_r = None
 
     # Check if any of the fuzzy matches exceed the threshold (95)
     if (fuzz_raw and fuzz_raw[1] > 95) or (fuzz_w_l and fuzz_w_l[1] > 95) or (fuzz_r_n_r and fuzz_r_n_r > 95):
