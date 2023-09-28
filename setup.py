@@ -75,7 +75,9 @@ def main():
             'deep-translator',
             'translators',
             'nltk',
-            'html5lib'
+            'html5lib',
+            'pycountry',
+            'nltk',
         ],
     )
 

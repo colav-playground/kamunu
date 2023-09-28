@@ -1,7 +1,5 @@
-import kamunu.kamunu_main as kamunu_main
-from bson.objectid import ObjectId
 import requests
-import re
+from time import time
 
 
 def extract_data(record):
@@ -37,6 +35,18 @@ def extract_data(record):
                 for lang in wr['entities'][wiki_id]['labels']:
                     wiki_name = wr['entities'][wiki_id]['labels'][lang]['value']
                     break
+
+        # Extract ROR ID from Wikidata
+        wikidata = wr['entities'].get(wiki_id)
+        if 'claims' in wikidata:
+            P = 'P6782'
+            ROR_ID = True if P in wikidata['claims'] else False
+            if ROR_ID:
+                ror_id = 'https://ror.org/' + \
+                    wikidata['claims'][P][0]['mainsnak']['datavalue']['value']
+
+            record['ids']['ror'] = ror_id
+
     else:
         wr = None
         wiki_name = None
@@ -56,20 +66,33 @@ def extract_data(record):
 
     if wiki_id or ror_id:
         # Update the database record
-        record['names'] = {
-            'wikidata': wiki_name,
-            'ror': ror_name
-        },
-        record['categories'] = ''
-        record['location'] = ''
-        record['records'] = {
-            'wikidata': wr['entities'].get(wiki_id) if wr else '',
-            'ror': rr
+
+        record_ = {
+            '_id': record['_id'],
+            'raw_name': record['raw_name'],
+            'names': {
+                'wikidata': wiki_name,
+                'ror': ror_name
+            },
+            'ids': record['ids'],
+            'categories': '',
+            'location': '',
+            'records': {
+                'wikidata': wr['entities'].get(wiki_id) if wr else '',
+                'ror': rr
+            },
+            'updated': [],
+            'validation': {
+                'verified': 0,
+                'control': 0
+            }
         }
-        record['validation'] = {
-            'verified': 0,
-            'control': 0
-        }
+
+        if wiki_id:
+            record_["updated"].append(
+                {"time": int(time()), "source": "wikidata"})
+        if ror_id:
+            record_["updated"].append({"time": int(time()), "source": "ror"})
 
         # Reset temporary variables
         wiki_name = ''
@@ -77,45 +100,6 @@ def extract_data(record):
         wr = ''
         rr = ''
 
-        return record
+        return record_
 
-    return False
-
-
-def id_as_input(query: str, source: str):
-
-    record = {
-        '_id': ObjectId(),
-        'raw_name': [{
-            'source': source,
-            'name': query
-        }],
-        'ids': {
-            'wikidata': '',
-            'ror': ''}
-    }
-
-    # Regular expression patterns for different types of inputs
-    ror_url_pattern = r'^https:\/\/ror\.org\/\w+$'
-    wikidata_url_pattern = r'^https:\/\/www\.wikidata\.org\/wiki\/Q\d+$'
-    wikidata_id_pattern = r'^Q\d+$'
-    ror_id_pattern = r'^\w+$'
-
-    # Checking patterns
-    if re.match(ror_url_pattern, query):
-        record['ids']['wikidata'] = None
-        record['ids']['ror'] = query
-    elif re.match(wikidata_url_pattern, query):
-        record['ids']['wikidata'] = query
-        record['ids']['ror'] = None
-    elif re.match(wikidata_id_pattern, query):
-        record['ids']['wikidata'] = "https://www.wikidata.org/wiki/" + query
-        record['ids']['ror'] = None
-    elif re.match(ror_id_pattern, query):
-        record['ids']['wikidata'] = None
-        record['ids']['ror'] = "https://ror.org/" + query
-
-    update = kamunu_main.insert_organization_record(
-        record, 'records_collection', 'insert')
-
-    return update
+    return None
