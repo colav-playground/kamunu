@@ -1,14 +1,17 @@
-from kamunu.enrichment import location_enrichment
+from kamunu.enrichment import location_enrichment, categories_enrichment
 from kamunu.local_search import local_search
 from kamunu.extract_data import extract_data
-from collections import OrderedDict
+from kamunu.cat_scrapper import categories
 from bson.objectid import ObjectId
+from nltk.corpus import stopwords
 from kamunu.Kamunu import Kamunu
 from kamunu.db import mongodb
+import nltk
 import json
 import time
 
 records_collection, not_inserted = mongodb()
+nltk.download('stopwords')
 
 
 def insert_organization_record(record, collection, function):
@@ -31,21 +34,37 @@ def insert_organization_record(record, collection, function):
             if insert:
                 print(
                     f"'{record['raw_name'][0]['name']}' inserted in the DB at ObjectId({record['_id']})")
-                time.sleep(0.1)
                 update = extract_data(record)
                 if update:
                     _id = (record['_id'])
                     location_update = location_enrichment(update)
                     if location_update:
-                        update['location'] = location_update
+                        location = {
+                            'country': location_update[0],
+                            'city': location_update[1],
+                            'coordinates': location_update[2]
+                        }
+                        update['location'] = location
 
-                    keys_order = ['_id', 'raw_name', 'names', 'ids',
-                                  'categories', 'location', 'records', 'validation']
-                    final_record = OrderedDict(
-                        (key, update[key]) for key in keys_order)
+                    nameskesy = update['names'].keys()
+                    if 'wikidata' in nameskesy:
+                        categories_key = categories(
+                            update['names']['wikidata'])
+                    else:
+                        categories_key = categories(update['names']['ror'])
+
+                    if categories_key:
+                        update['categories'] = categories_key
+
+                    wikidata_categories, ror_categories = categories_enrichment(
+                        update)
+                    if wikidata_categories or ror_categories:
+                        update['categories']['wikidata'] = wikidata_categories
+                        update['categories']['ror'] = ror_categories
+
                     record_update = records_collection.find_one_and_update(
                         {'_id': _id},
-                        {"$set": final_record})
+                        {"$set": update})
 
                     if record_update:
                         print("The record was successfully updated.")
@@ -55,7 +74,7 @@ def insert_organization_record(record, collection, function):
                 else:
                     print("The record data was NOT extracted.")
 
-            time.sleep(0.1)
+            time.sleep(0.02)
             return record
 
         elif collection == 'not_inserted':
@@ -79,7 +98,7 @@ def insert_organization_record(record, collection, function):
                     return True
 
 
-def single_organization(organization_name, source):
+def single_organization(organization_name, source, country=None):
     """
     Insert a single organization record into the database.
 
@@ -90,8 +109,33 @@ def single_organization(organization_name, source):
     Returns:
         bool: True if the operation is successful, False otherwise.
     """
+    print(f'a single_organization ingresó el país {country}')
 
-    local_record = local_search(organization_name)
+    def input_evaluation(organization_name: str):
+
+        excluded_words = ['organ', 'comp', 'companhia', 'empr', 'socie', 'societa', 'corp', 'corp', 'coop', 'limit', 'gmbh', 'sarl', 'inc', 'ltd',
+                          'group', 'grupo', 'gruppo', 'association', 'asocia', 'univ', 'coll', 'inst', 'acad', 'school', 'escue', 'depar']
+
+        input_ = organization_name.lower().strip().split()
+        len_input = len(input_)
+        for word in excluded_words:
+            if len_input <= 1 and word in input_[0]:
+                return None
+
+        if len_input == 2:
+            stopwords_list = stopwords.words()
+            for term in input_:
+                if term in stopwords_list:
+                    return None
+
+        return organization_name
+
+    organization_name = input_evaluation(organization_name)
+
+    if organization_name is None:
+        return None
+
+    local_record = local_search(organization_name, country)
 
     if local_record:
         full_record = local_record[1]
@@ -103,13 +147,14 @@ def single_organization(organization_name, source):
         inserted = insert_organization_record(
             record, 'records_collection', 'update')
         if inserted:
-            print("The new name and the data source were added to the corresponding record")
+            print(
+                "The new name and the data source were added to the corresponding record")
         else:
             print("The new name and data source already exist in the record.")
-        time.sleep(0.1)
         return full_record
     else:
         kamunu, search_results = Kamunu(organization_name)
+        print(search_results)
 
         if kamunu and (kamunu['wikidata'] or kamunu['ror']):
             record = {
@@ -118,6 +163,7 @@ def single_organization(organization_name, source):
                     'source': source,
                     'name': organization_name
                 }],
+                'names': '',
                 'ids': kamunu,
             }
             inserted = insert_organization_record(
@@ -181,14 +227,15 @@ def multiple_organizations(json_file_path):
                 inserted = insert_organization_record(
                     record, 'records_collection', 'update')
                 if inserted:
-                    print("The new name and the data source were added to the corresponding record")
+                    print(
+                        "The new name and the data source were added to the corresponding record")
                 else:
                     print("The new name and data source already exist in the record.")
-                time.sleep(0.1)
+                time.sleep(0.02)
                 return True
             else:
-                kamunu = Kamunu(organization_name)[0]
-                print(kamunu)
+                kamunu, search_results = Kamunu(organization_name)[0]
+                # print(kamunu)
 
                 if kamunu and (kamunu['wikidata'] or kamunu['ror']):
                     record = {
@@ -197,11 +244,12 @@ def multiple_organizations(json_file_path):
                             'source': source,
                             'name': organization_name
                         }],
+                        'names': '',
                         'ids': kamunu,
                     }
                     inserted = insert_organization_record(
                         record, 'records_collection', 'insert')
-                    time.sleep(0.1)
+                    time.sleep(0.02)
                     if inserted:
                         rds += 1
 

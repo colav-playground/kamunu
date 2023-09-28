@@ -4,6 +4,8 @@ from bson.objectid import ObjectId
 from nltk.corpus import stopwords
 from unidecode import unidecode
 from kamunu.db import mongodb
+import pycountry
+import gettext
 import nltk
 import re
 
@@ -70,7 +72,48 @@ def remove_words(word_list: list):
     return filtered_words
 
 
-def org_match(_id: str, org: str):
+def country_check(country: str):
+    """
+    Check if the input country name matches a country in the ISO 3166 dataset.
+
+    Parameters:
+    country (str): The name of the country to check.
+
+    Returns:
+    str: The alpha_3 code of the matching country if found, None otherwise.
+    """
+    response = None
+    translations = {}  # Dictionary to store translations
+
+    # Iterate through the list of alpha_2 codes to fetch translations
+    for cod in [country.alpha_2 for country in pycountry.countries]:
+        try:
+            exp = gettext.translation(
+                'iso3166', pycountry.LOCALES_DIR, languages=[cod])
+            exp.install()
+            translations[cod] = exp.gettext
+        except FileNotFoundError:
+            continue  # Skip languages without translations
+
+    # Normalize the input country name
+    normalized_country = country.lower().strip()
+
+    # Iterate through the list of English country names
+    for english_country in pycountry.countries:
+        py_country = english_country.name.lower()
+
+        # Check if the input country matches the normalized English name
+        if normalized_country == py_country:
+            # Retrieve the country entry by alpha_2 code
+            entry = pycountry.countries.get(alpha_2=english_country.alpha_2)
+            # Set the response to the alpha_3 code of the matching country
+            response = entry.alpha_3
+            break
+
+    return response
+
+
+def org_match(_id: str, org: str, country: str = None):
     org = re.sub(r'\s+', ' ', org.strip())
     """
     Check if the given organization (org) matches any of the names in the records collection
@@ -79,6 +122,7 @@ def org_match(_id: str, org: str):
     Args:
         _id (str): The ID of the record to search in the records collection.
         org (str): The name of the organization to be matched.
+        country (str): The name of the country to be matched.
 
     Returns:
         Optional[str]: The _id of the matching record if found, otherwise returns None.
@@ -87,6 +131,21 @@ def org_match(_id: str, org: str):
 
     # Retrieve the record from the records collection based on the given _id
     itms = records_collection.find_one({'_id': ObjectId(_id)})
+    threshold = 95
+
+    country_match = None
+    if country:
+        threshold = 85
+        country_exist = itms.get('location').get('country')
+
+        if country_exist:
+            country_record = country_exist.get('country_name')
+
+            country_match = True if country_check(
+                country) == country_check(country_record) else False
+
+    else:
+        country_match = True
 
     # Extract raw_names and convert them to lowercase
     raw_names = itms.get('raw_name', [])
@@ -111,21 +170,22 @@ def org_match(_id: str, org: str):
             fuzz_r_n_r = None
 
     # Check if any of the fuzzy matches exceed the threshold (95)
-    if (fuzz_raw and fuzz_raw[1] > 95) or (fuzz_w_l and fuzz_w_l[1] > 95) or (fuzz_r_n_r and fuzz_r_n_r > 95):
-        # print(f'raw_name: {fuzz_raw}, wiki_label: {fuzz_w_l}, ror_name: {fuzz_r_n_r}')
+    if ((fuzz_raw and fuzz_raw[1] > threshold) or (fuzz_w_l and fuzz_w_l[1] > threshold) or (fuzz_r_n_r and fuzz_r_n_r > threshold)) and country_match:
+        # print(f'{itms["_id"]}, raw_name: {fuzz_raw}, wiki_label: {fuzz_w_l}, ror_name: {fuzz_r_n_r}, {country_match}')
         return itms['_id']
 
     # No match found, return None
     return None
 
 
-def org_search(key: str, organization: str):
+def org_search(key: str, organization: str, country: str = None):
     """
     Search for organizations in the records collection based on the given organization.
 
     Args:
         key (str): he key of the document where the text will be searched.
         organization (str): The name of the organization to search for.
+        country (str): The name of the country to search for.
 
     Returns:
         Optional[str]: The _id of the matching organization's record if found, otherwise returns None.
@@ -141,7 +201,6 @@ def org_search(key: str, organization: str):
 
     # Remove specific words from the filtered organization name
     filtered_words = remove_words(filtered_org)
-    # print(filtered_words)
 
     for word in filtered_words:
         word = unidecode(re.sub(r'\s+', ' ', word.strip()))
@@ -149,12 +208,13 @@ def org_search(key: str, organization: str):
 
         # Search for records with matching raw_name using regex pattern
         results = records_collection.find({key: regex_pattern})
+
         for result in results:
             _id = result['_id']
             # print(_id, records_collection.find_one({'_id': ObjectId(_id)})['names'])
 
             # Check if the organization name matches any of the records' names using org_match function
-            id_found = org_match(_id, organization)
+            id_found = org_match(_id, organization, country)
             if id_found:
                 record = records_collection.find_one(
                     {'_id': ObjectId(_id)})
@@ -164,21 +224,24 @@ def org_search(key: str, organization: str):
     return None
 
 
-def local_search(organization: str):
+def local_search(organization: str, country: str = None):
 
     global records_collection
     records_collection = mongodb()[0]
 
     main_result = org_search(key='names.wikidata',
-                             organization=organization)
+                             organization=organization,
+                             country=country)
 
     if not main_result:
         main_result = org_search(key='raw_name.name',
-                                 organization=organization)
+                                 organization=organization,
+                                 country=country)
 
     if not main_result:
         main_result = org_search(key='names.ror',
-                                 organization=organization)
+                                 organization=organization,
+                                 country=country)
 
     if main_result:
         return main_result

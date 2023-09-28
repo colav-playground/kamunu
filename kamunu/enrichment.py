@@ -1,10 +1,12 @@
+from fuzzywuzzy import process, fuzz
+from kamunu.utils import wiki_ids
 import requests
 import time
 
 
 def Qsearch(id_: str):
     try:
-        time.sleep(1)
+        time.sleep(0.05)
         r = requests.get(
             f'https://www.wikidata.org/wiki/Special:EntityData/{id_}.json').json()
     except Exception as e:
@@ -51,7 +53,7 @@ def location_enrichment(record):
             if country['country_name'] and city['city'] and coordinates['latitude']:
                 return country, city, coordinates
 
-    # Si los datos no se extraen de ROR, se extraen de wikidata
+    # If the data are not found in ROR, an attempt is made to extract them from wikidata.
     wikidata = record['records']['wikidata']
     if wikidata and 'claims' in wikidata:
         claims = record['records']['wikidata']['claims']
@@ -76,13 +78,77 @@ def location_enrichment(record):
                     'geonames_ids': city_data[1]}
             return country, city, coordinates
 
+        elif 'P36' in claims and 'datavalue' in claims['P36'][0]['mainsnak']:
+            P36 = claims['P36'][0]['mainsnak']['datavalue']['value']['id']
+            city_data = Qsearch(P36)
+            city = {'city': city_data[0],
+                    'geonames_ids': city_data[1]}
+
+        if 'P625' in claims and 'datavalue' in claims['P625'][0]['mainsnak']:
+            latitude = claims['P625'][0]['mainsnak']['datavalue']['value']['latitude']
+            longitude = claims['P625'][0]['mainsnak']['datavalue']['value']['longitude']
+            coordinates = {
+                'latitude': latitude,
+                'longitude': longitude}
+
         # Administrative territorial entity
-        elif 'P131' in claims:
+        if not city and 'P131' in claims:
             P131 = claims['P131'][0]['mainsnak']['datavalue']['value']['id']
             city_data = Qsearch(P131)
             city = {'city': city_data[0],
                     'geonames_ids': city_data[1]}
 
-            return country, city, coordinates
+    return country, city, coordinates
 
-    return None, None, None
+
+def categories_enrichment(record):
+    types_words = ['nonprofit', 'forprofit', 'private', 'public',
+                   'mixed', 'hybrid', 'non-profit', 'for-profit', 'non-for-profit']
+    claims = None
+    wikidata_categories = None
+    ror_categories = None
+
+    wikidata_ids = wiki_ids.wiki_types()
+    if record['records']['wikidata'] and 'claims' in record['records']['wikidata']:
+        if 'P31' in record['records']['wikidata']['claims']:
+            claims = [claim for claim in record['records']
+                      ['wikidata']['claims']['P31']]
+
+    try:
+        cat_ids = [cid['mainsnak']['datavalue']['value']['id']
+                   for cid in claims]
+    except Exception:
+        cat_ids = None
+
+    if cat_ids:
+        wikidata_categories = []
+
+        for wid in wikidata_ids:
+            wiki_cat = wid[0]
+            if wiki_cat in cat_ids:
+                wikidata_categories.append(wid[2])
+
+        if not wikidata_categories:
+            for cat_id in cat_ids:
+                id_search = Qsearch(cat_id)
+                if id_search:
+                    label = id_search[0]
+                    for word in types_words:
+                        fu = fuzz.token_set_ratio(word, label)
+                        if fu == 100:
+                            wikidata_categories.append(word)
+
+    if record['records']['ror'] and record['records']['ror']['types']:
+        ror_types = record['records']['ror']['types']
+
+        ror_categories = []
+
+        for ror_type in ror_types:
+            fuzzy = process.extractOne(ror_type.lower(), types_words)
+            if fuzzy and fuzzy[1] >= 80:
+                ror_categories.append(fuzzy[0])
+
+        if not ror_categories:
+            ror_categories = None
+
+    return wikidata_categories, ror_categories
