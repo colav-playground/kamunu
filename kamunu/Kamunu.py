@@ -489,7 +489,7 @@ def Kamunu(query):
         response_ror = ror_search(response_wiki, query)
 
         ror_wikid = None
-        if response_ror and type(response_ror) == tuple:
+        if response_ror and isinstance(response_ror, tuple):
             if response_ror[1]:
                 ror_wikid = response_ror[1][0]
 
